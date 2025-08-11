@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dotenv from "dotenv";
 import { connectDB } from "./db";
 import { registerRoutes } from "./routes";
@@ -9,11 +10,27 @@ dotenv.config();
 
 const app = express();
 
-// Configure CORS
+
+// Configure CORS for production and development
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173'];
+
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
+
+// Add security headers
+app.use(helmet());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -29,19 +46,20 @@ app.use((req, res, next) => {
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
+
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (process.env.NODE_ENV !== 'production' && capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
-      console.log(logLine);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(logLine);
+      }
     }
   });
 
@@ -54,12 +72,17 @@ app.use((req, res, next) => {
   
   const server = await registerRoutes(app);
 
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
+    // Only show detailed error in development
+    const message = process.env.NODE_ENV === 'production'
+      ? "Internal Server Error"
+      : err.message || "Internal Server Error";
     res.status(status).json({ message });
-    throw err;
+    if (process.env.NODE_ENV !== 'production') {
+      throw err;
+    }
   });
 
   // API-only backend, no static file serving
