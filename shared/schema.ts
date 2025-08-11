@@ -1,60 +1,79 @@
-import { sql } from 'drizzle-orm';
-import {
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import mongoose, { Document, Schema } from 'mongoose';
 import { z } from "zod";
 
-// Session storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const sessions = pgTable(
-  "sessions",
-  {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
-    expire: timestamp("expire").notNull(),
-  },
-  (table) => [index("IDX_session_expire").on(table.expire)],
-);
+// User Schema and Model
+export interface IUser extends Document {
+  _id: string;
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+const userSchema = new Schema<IUser>({
+  email: { type: String, required: true, unique: true, lowercase: true },
+  password: { type: String, required: true },
+  firstName: { type: String },
+  lastName: { type: String },
+  profileImageUrl: { type: String },
+}, {
+  timestamps: true,
 });
 
-// Notes table for storing user tasks
-export const notes = pgTable("notes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  priority: integer("priority").notNull(), // 1-5 scale
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+// Don't return password in JSON responses
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  return user;
+};
+
+export const User = mongoose.model<IUser>('User', userSchema);
+
+// Note Schema and Model
+export interface INote extends Document {
+  _id: string;
+  userId: string;
+  title: string;
+  description: string;
+  priority: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const noteSchema = new Schema<INote>({
+  userId: { type: String, required: true, ref: 'User' },
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  priority: { type: Number, required: true, min: 1, max: 5 },
+}, {
+  timestamps: true,
 });
 
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+export const Note = mongoose.model<INote>('Note', noteSchema);
 
-export const insertNoteSchema = createInsertSchema(notes).omit({
-  id: true,
-  userId: true,
-  createdAt: true,
-  updatedAt: true,
+// Zod validation schemas
+export const insertNoteSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  priority: z.number().min(1).max(5),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+});
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 export type InsertNote = z.infer<typeof insertNoteSchema>;
-export type Note = typeof notes.$inferSelect;
+export type RegisterUser = z.infer<typeof registerSchema>;
+export type LoginUser = z.infer<typeof loginSchema>;
+export type UpsertUser = Partial<IUser>;
