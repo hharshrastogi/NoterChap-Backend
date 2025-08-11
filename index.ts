@@ -13,16 +13,24 @@ const app = express();
 
 // Configure CORS for production and development
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL]
-  : ['http://localhost:5173'];
+  ? [process.env.FRONTEND_URL, 'https://noterchap.vercel.app', 'https://noter-chap.vercel.app']
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+// Add fallback if FRONTEND_URL is not set
+if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
 app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.some(allowedOrigin => allowedOrigin && origin === allowedOrigin)) {
       return callback(null, true);
     } else {
+      console.log(`CORS blocked origin: ${origin}. Allowed origins:`, allowedOrigins);
       return callback(new Error('Not allowed by CORS'));
     }
   },
