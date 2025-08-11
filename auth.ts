@@ -2,9 +2,17 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
 import { User, type IUser } from './shared/schema';
+import dotenv from 'dotenv';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+// Load environment variables
+dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is not defined');
+}
 
 export interface AuthRequest extends Request {
   user?: IUser;

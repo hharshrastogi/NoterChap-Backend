@@ -1,6 +1,14 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://hharshrastogi:9WwlcH3rF1UoBbI3@noter-chapmain.upd70xe.mongodb.net/noterchap?retryWrites=true&w=majority&appName=Noter-ChapMain&ssl=true';
+// Load environment variables
+dotenv.config();
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  throw new Error('MONGODB_URI environment variable is not defined');
+}
 
 let isConnected = false;
 

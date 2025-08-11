@@ -1,7 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 import { connectDB } from "./db";
 import { registerRoutes } from "./routes";
+
+// Load environment variables first
+dotenv.config();
 
 const app = express();
 
